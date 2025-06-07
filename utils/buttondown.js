@@ -89,11 +89,11 @@ async function createDraftEmail(subject, htmlContent, recipient) {
         subject,
         body: htmlContent,
         status: "draft",
-        recipient: recipient || "webdev0505@gmail.com", // Default recipient
+        template: "naked",
+        // recipient: recipient || "webdev0505@gmail.com", // Default recipient
     };
 
     try {
-        console.log("Creating draft email with payload:", JSON.stringify(payload, null, 2));
         const response = await fetch(`${BUTTONDOWN_API_URL}/emails`, {
             method: "POST",
             headers: {
@@ -102,9 +102,6 @@ async function createDraftEmail(subject, htmlContent, recipient) {
             },
             body: JSON.stringify(payload),
         });
-
-        console.log("Draft creation response status:", response.status);
-        console.log("Draft creation response headers:", response.headers.raw());
 
         if (!response.ok) {
             let errorDetailsMessage = `Status: ${response.status} ${response.statusText}`;
