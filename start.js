@@ -477,9 +477,16 @@ async function main() {
       );
 
       // Generate event items HTML
-      let eventItemsHtml = "";
-      for (const event of emailData.events) {
-        eventItemsHtml += `
+      let eventItemsRow1 = "";
+      let eventItemsRow2 = "";
+      
+      // Split events into two rows
+      const firstRowEvents = emailData.events.slice(0, 3);
+      const secondRowEvents = emailData.events.slice(3, 6);
+
+      // Generate HTML for first row
+      for (const event of firstRowEvents) {
+        eventItemsRow1 += `
           <td align="center" valign="top" style="padding: 0 5px 20px 5px;" class="event-column">
               <table border="0" cellpadding="0" cellspacing="0" width="180" class="event-card">
                   <tr>
@@ -505,29 +512,50 @@ async function main() {
           </td>`;
       }
 
-      // Add empty columns if needed to maintain 3-column layout
-      const emptyColumnCount = 3 - (emailData.events.length % 3);
-      if (emptyColumnCount < 3) {
-        for (let i = 0; i < emptyColumnCount; i++) {
-          eventItemsHtml += `
-            <td align="center" valign="top" style="padding: 0 5px 20px 5px;" class="event-column">
-                <!-- Empty column -->
-            </td>`;
-        }
+      // Generate HTML for second row
+      for (const event of secondRowEvents) {
+        eventItemsRow2 += `
+          <td align="center" valign="top" style="padding: 0 5px 20px 5px;" class="event-column">
+              <table border="0" cellpadding="0" cellspacing="0" width="180" class="event-card">
+                  <tr>
+                      <td align="center" style="padding-bottom: 10px;">
+                          <a href="${event.detailedPageLink}" target="_blank">
+                              <img src="${event.imageUrl}" alt="${event.eventName}" width="180" height="223" style="display: block; border: 0; width:180px; height:223px;" class="responsive-image">
+                          </a>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td align="center" style="font-size: 16px; font-weight: bold; padding-bottom: 5px;">
+                          <a href="${event.detailedPageLink}" target="_blank" style="color: #0066cc;">
+                              ${event.eventName}
+                          </a>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td align="center" style="font-size: 14px; padding-bottom: 10px;" class="event-date-color">
+                          ${event.date}
+                      </td>
+                  </tr>
+              </table>
+          </td>`;
       }
 
-      // Replace event items placeholder
+      // Replace event items placeholders
       populatedHtml = populatedHtml.replace(
-        "<!-- {{EVENT_ITEMS_HTML}} -->",
-        eventItemsHtml
+        "<!-- {{EVENT_ITEMS_ROW_1}} -->",
+        eventItemsRow1
+      );
+      populatedHtml = populatedHtml.replace(
+        "<!-- {{EVENT_ITEMS_ROW_2}} -->",
+        eventItemsRow2
       );
 
-      // Save the populated email template
-      const outputFileName = "populated-email.html";
-      await fs.writeFile(outputFileName, populatedHtml, "utf8");
-      console.log(
-        `\n💌 Email template populated and saved to: ${outputFileName}`
-      );
+      // Format and sanitize the HTML content
+      populatedHtml = populatedHtml
+        .replace(/\r\n/g, '\n') // Normalize line endings
+        .replace(/\n\s*\n/g, '\n') // Remove multiple empty lines
+        .replace(/>\s+</g, '><') // Remove whitespace between tags
+        .trim(); // Remove leading/trailing whitespace
 
       // Send email via Buttondown
       console.log("\n📧 Sending email via Buttondown...");
