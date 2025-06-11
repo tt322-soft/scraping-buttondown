@@ -34,8 +34,14 @@ async function initializeBrowser(headless = false) {
   const randomUserAgent = getRandomUserAgent();
 
   let launchOptions = {
-    headless: headless,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"],
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote'
+    ]
   };
 
   try {
