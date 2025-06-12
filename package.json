@@ -5,6 +5,7 @@
   "main": "start.js",
   "type": "module",
   "scripts": {
+    "postinstall": "puppeteer install",
     "start": "node server.js"
   },
   "dependencies": {
