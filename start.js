@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import chromium from 'chrome-aws-lambda';
 import {
   getRandomUserAgent,
   getRandomDelay,
@@ -35,27 +34,21 @@ async function initializeBrowser(headless = false) {
   const randomUserAgent = getRandomUserAgent();
 
   let launchOptions = {
+    headless: "new",
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-zygote',
-      '--single-process',
-      '--disable-extensions',
-      '--disable-software-rasterizer',
-      '--disable-features=site-per-process',
-      '--disable-web-security',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-site-isolation-trials'
+      '--disable-dev-shm-usage'
     ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
-    headless: "new",
-    ignoreHTTPSErrors: true
+    executablePath: process.platform === 'win32' 
+      ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+      : process.platform === 'darwin'
+      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      : '/usr/bin/google-chrome'
   };
 
   try {
-    console.log("🚀 Launching browser with options:", JSON.stringify(launchOptions, null, 2));
+    console.log("🚀 Launching browser...");
     browser = await puppeteer.launch(launchOptions);
     console.log("✅ Browser launched successfully");
     
