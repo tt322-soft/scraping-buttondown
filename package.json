@@ -2,10 +2,8 @@
   "name": "stepout-buffalo-scraper",
   "version": "1.0.0",
   "description": "Scraper for Step Out Buffalo events with email template generation",
-  "main": "start.js",
-  "type": "module",
+  "main": "server.js",
   "scripts": {
-    "postinstall": "puppeteer install",
     "start": "node server.js"
   },
   "dependencies": {
