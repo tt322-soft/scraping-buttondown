@@ -1,13 +1,9 @@
 import "dotenv/config";
-import { chromium } from "playwright";
-import {
-  getRandomUserAgent,
-  getRandomDelay,
-  sanitizeHtml,
-} from "./utils/utils.js";
 import { promises as fs } from "fs";
 import OpenAI from "openai";
 import { sendEmail } from "./utils/buttondown.js";
+import { getRandomUserAgent, getRandomDelay } from "./utils/utils.js";
+import { initializeBrowser, closeBrowser } from "./browser.js";
 
 console.log("🚀 Script starting...");
 
@@ -24,296 +20,255 @@ const RATE_LIMIT_CONFIG = {
   retryDelay: 1000,
 };
 
-let browser = null;
-let context = null;
-let page = null;
-
-async function initializeBrowser(headless = true) {
-  const randomUserAgent = getRandomUserAgent();
-
-  try {
-    browser = await chromium.launch({
-      headless: headless,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-software-rasterizer",
-        "--disable-extensions",
-        "--single-process",
-        "--no-zygote"
-      ]
-    });
-
-    context = await browser.newContext({
-      userAgent: randomUserAgent,
-      viewport: {
-        width: 1366,
-        height: 768,
-      },
-      deviceScaleFactor: 1,
-      hasTouch: false,
-      isMobile: false,
-      locale: "en-US",
-      timezoneId: "America/New_York",
-    });
-
-    page = await context.newPage();
-
-    // Set extra headers
-    await page.setExtraHTTPHeaders({
-      "accept-Language": "en-US,en;q=0.9",
-      "accept-encoding": "gzip, deflate, br",
-    });
-
-    return true;
-  } catch (error) {
-    console.error("❌ Browser initialization failed:", error.message);
-    throw error;
-  }
-}
-
 async function getEventData(url = null) {
   if (!url) {
     url = "https://stepoutbuffalo.com/all-events/";
   }
 
-  console.log("🌐 Navigating to Step Out Buffalo events page...");
-  await page.goto(url, {
-    waitUntil: "networkidle",
-    timeout: 60000,
-  });
-
-  await getRandomDelay(6000, 8000);
+  const { browser, context, page } = await initializeBrowser(true);
 
   try {
-    console.log("📜 Starting page scroll to load all content...");
-    const scrollDuration = 4000;
-    const scrollStep = 200;
-    const scrollInterval = 100;
-
-    const startTime = Date.now();
-    while (Date.now() - startTime < scrollDuration) {
-      await page.evaluate((step) => {
-        window.scrollBy(0, step);
-      }, scrollStep);
-      await new Promise((resolve) => setTimeout(resolve, scrollInterval));
-    }
-
-    await page.evaluate(() => {
-      window.scrollTo(0, document.body.scrollHeight);
+    console.log("🌐 Navigating to Step Out Buffalo events page...");
+    await page.goto(url, {
+      waitUntil: "networkidle",
+      timeout: 60000,
     });
 
-    console.log("⏳ Waiting for content to settle...");
-    await getRandomDelay(4000, 5000);
+    await getRandomDelay(6000, 8000);
 
-    console.log("🔍 Looking for event elements...");
+    try {
+      console.log("📜 Starting page scroll to load all content...");
+      const scrollDuration = 4000;
+      const scrollStep = 200;
+      const scrollInterval = 100;
 
-    // Try multiple selectors to find events
-    const selectors = [
-      '[class*="FourCol  cardBox"]',
-      '[class*="cardBox"]',
-      ".event-card",
-      ".event-item",
-    ];
-
-    let cardBoxElements = [];
-    for (const selector of selectors) {
-      console.log(`Trying selector: ${selector}`);
-      cardBoxElements = await page.$$(selector);
-      if (cardBoxElements.length > 0) {
-        console.log(
-          `✅ Found ${cardBoxElements.length} elements with selector: ${selector}`
-        );
-        break;
+      const startTime = Date.now();
+      while (Date.now() - startTime < scrollDuration) {
+        await page.evaluate((step) => {
+          window.scrollBy(0, step);
+        }, scrollStep);
+        await new Promise((resolve) => setTimeout(resolve, scrollInterval));
       }
-    }
 
-    if (cardBoxElements.length === 0) {
-      console.log("❌ No event elements found with any selector");
-      // Take a screenshot for debugging
-      await page.screenshot({ path: "debug-screenshot.png" });
-      console.log("📸 Debug screenshot saved as 'debug-screenshot.png'");
-      return null;
-    }
-
-    console.log(`📦 Found ${cardBoxElements.length} event elements`);
-
-    const mainElement = await page.$(selectors[0]);
-
-    if (!mainElement) {
-      console.log("❌ Main element not found");
-      return null;
-    }
-
-    console.log("✅ Main element found, searching for cardBox elements...");
-
-    const mainElementData = await page.evaluate((element) => {
-      return {
-        innerHTML: element.innerHTML,
-        outerHTML: element.outerHTML,
-        textContent: element.textContent.trim(),
-        className: element.className,
-        id: element.id,
-        tagName: element.tagName,
-      };
-    }, mainElement);
-
-    console.log("🤖 Starting GPT-4o processing for each event...");
-
-    // Process events in parallel batches to maximize throughput
-    const batchSize = RATE_LIMIT_CONFIG.batchSize; // Adjust based on your rate limits
-    const cardBoxData = [];
-
-    for (
-      let batchStart = 0;
-      batchStart < cardBoxElements.length;
-      batchStart += batchSize
-    ) {
-      const batchEnd = Math.min(batchStart + batchSize, cardBoxElements.length);
-      const batch = cardBoxElements.slice(batchStart, batchEnd);
-
-      console.log(
-        `🚀 Processing batch ${
-          Math.floor(batchStart / batchSize) + 1
-        }/${Math.ceil(cardBoxElements.length / batchSize)} (events ${
-          batchStart + 1
-        }-${batchEnd})`
-      );
-
-      // Process batch in parallel
-      const batchPromises = batch.map(async (element, batchIndex) => {
-        const globalIndex = batchStart + batchIndex;
-        console.log(
-          `🔄 Processing event ${globalIndex + 1}/${cardBoxElements.length}...`
-        );
-
-        const basicData = await page.evaluate(
-          ({ element, index }) => {
-            // Extract image URLs from img tags
-            const imgTags = Array.from(element.querySelectorAll("img")).map(
-              (img) => ({
-                type: "img",
-                src: img.src,
-                alt: img.alt || "",
-                title: img.title || "",
-              })
-            );
-
-            // Extract background images from style attributes
-            const backgroundImages = [];
-            const elementsWithBg = Array.from(element.querySelectorAll("*")).filter(
-              (element) => {
-                const style = element.getAttribute("style");
-                return style && style.includes("background-image");
-              }
-            );
-
-            elementsWithBg.forEach((element) => {
-              const style = element.getAttribute("style");
-              const bgImageMatch = style.match(
-                /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/
-              );
-              if (bgImageMatch) {
-                backgroundImages.push({
-                  type: "background",
-                  src: bgImageMatch[1],
-                  className: element.className || "",
-                  element: element.tagName,
-                });
-              }
-            });
-
-            // Combine all images
-            const allImages = [...imgTags, ...backgroundImages];
-
-            return {
-              index: index + 1,
-              innerHTML: element.innerHTML,
-              outerHTML: element.outerHTML,
-              textContent: element.textContent.trim(),
-              className: element.className,
-              id: element.id,
-              tagName: element.tagName,
-              images: allImages,
-            };
-          },
-          { element, index: globalIndex }
-        );
-
-        console.log(
-          `  📸 Found ${basicData.images.length} image(s) in event ${
-            globalIndex + 1
-          }:`
-        );
-        basicData.images.forEach((img, imgIndex) => {
-          if (img.type === "background") {
-            console.log(`    🎨 Background image: ${img.src}`);
-          } else {
-            console.log(`    🖼️ IMG tag: ${img.src}`);
-          }
-        });
-
-        const eventData = await extractEventDataWithGPT(
-          basicData.outerHTML,
-          globalIndex + 1
-        );
-
-        return {
-          ...basicData,
-          eventDetails: eventData,
-        };
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
       });
 
-      // Wait for all batch requests to complete
-      const batchResults = await Promise.all(batchPromises);
-      cardBoxData.push(...batchResults);
+      console.log("⏳ Waiting for content to settle...");
+      await getRandomDelay(4000, 5000);
+
+      console.log("🔍 Looking for event elements...");
+
+      // Try multiple selectors to find events
+      const selectors = [
+        '[class*="FourCol  cardBox"]',
+        '[class*="cardBox"]',
+        ".event-card",
+        ".event-item",
+      ];
+
+      let cardBoxElements = [];
+      for (const selector of selectors) {
+        console.log(`Trying selector: ${selector}`);
+        cardBoxElements = await page.$$(selector);
+        if (cardBoxElements.length > 0) {
+          console.log(
+            `✅ Found ${cardBoxElements.length} elements with selector: ${selector}`
+          );
+          break;
+        }
+      }
+
+      if (cardBoxElements.length === 0) {
+        console.log("❌ No event elements found with any selector");
+        // Take a screenshot for debugging
+        await page.screenshot({ path: "debug-screenshot.png" });
+        console.log("📸 Debug screenshot saved as 'debug-screenshot.png'");
+        return null;
+      }
+
+      console.log(`📦 Found ${cardBoxElements.length} event elements`);
+
+      const mainElement = await page.$(selectors[0]);
+
+      if (!mainElement) {
+        console.log("❌ Main element not found");
+        return null;
+      }
+
+      console.log("✅ Main element found, searching for cardBox elements...");
+
+      const mainElementData = await page.evaluate((element) => {
+        return {
+          innerHTML: element.innerHTML,
+          outerHTML: element.outerHTML,
+          textContent: element.textContent.trim(),
+          className: element.className,
+          id: element.id,
+          tagName: element.tagName,
+        };
+      }, mainElement);
+
+      console.log("🤖 Starting GPT-4o processing for each event...");
+
+      // Process events in parallel batches to maximize throughput
+      const batchSize = RATE_LIMIT_CONFIG.batchSize; // Adjust based on your rate limits
+      const cardBoxData = [];
+
+      for (
+        let batchStart = 0;
+        batchStart < cardBoxElements.length;
+        batchStart += batchSize
+      ) {
+        const batchEnd = Math.min(batchStart + batchSize, cardBoxElements.length);
+        const batch = cardBoxElements.slice(batchStart, batchEnd);
+
+        console.log(
+          `🚀 Processing batch ${
+            Math.floor(batchStart / batchSize) + 1
+          }/${Math.ceil(cardBoxElements.length / batchSize)} (events ${
+            batchStart + 1
+          }-${batchEnd})`
+        );
+
+        // Process batch in parallel
+        const batchPromises = batch.map(async (element, batchIndex) => {
+          const globalIndex = batchStart + batchIndex;
+          console.log(
+            `🔄 Processing event ${globalIndex + 1}/${cardBoxElements.length}...`
+          );
+
+          const basicData = await page.evaluate(
+            ({ element, index }) => {
+              // Extract image URLs from img tags
+              const imgTags = Array.from(element.querySelectorAll("img")).map(
+                (img) => ({
+                  type: "img",
+                  src: img.src,
+                  alt: img.alt || "",
+                  title: img.title || "",
+                })
+              );
+
+              // Extract background images from style attributes
+              const backgroundImages = [];
+              const elementsWithBg = Array.from(element.querySelectorAll("*")).filter(
+                (element) => {
+                  const style = element.getAttribute("style");
+                  return style && style.includes("background-image");
+                }
+              );
+
+              elementsWithBg.forEach((element) => {
+                const style = element.getAttribute("style");
+                const bgImageMatch = style.match(
+                  /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/
+                );
+                if (bgImageMatch) {
+                  backgroundImages.push({
+                    type: "background",
+                    src: bgImageMatch[1],
+                    className: element.className || "",
+                    element: element.tagName,
+                  });
+                }
+              });
+
+              // Combine all images
+              const allImages = [...imgTags, ...backgroundImages];
+
+              return {
+                index: index + 1,
+                innerHTML: element.innerHTML,
+                outerHTML: element.outerHTML,
+                textContent: element.textContent.trim(),
+                className: element.className,
+                id: element.id,
+                tagName: element.tagName,
+                images: allImages,
+              };
+            },
+            { element, index: globalIndex }
+          );
+
+          console.log(
+            `  📸 Found ${basicData.images.length} image(s) in event ${
+              globalIndex + 1
+            }:`
+          );
+          basicData.images.forEach((img, imgIndex) => {
+            if (img.type === "background") {
+              console.log(`    🎨 Background image: ${img.src}`);
+            } else {
+              console.log(`    🖼️ IMG tag: ${img.src}`);
+            }
+          });
+
+          const eventData = await extractEventDataWithGPT(
+            basicData.outerHTML,
+            globalIndex + 1
+          );
+
+          return {
+            ...basicData,
+            eventDetails: eventData,
+          };
+        });
+
+        // Wait for all batch requests to complete
+        const batchResults = await Promise.all(batchPromises);
+        cardBoxData.push(...batchResults);
+
+        console.log(
+          `✅ Batch ${Math.floor(batchStart / batchSize) + 1} completed (${
+            batchResults.length
+          } events processed)`
+        );
+
+        // Small delay between batches to avoid overwhelming the API
+        if (batchEnd < cardBoxElements.length) {
+          await getRandomDelay(
+            RATE_LIMIT_CONFIG.batchDelay,
+            RATE_LIMIT_CONFIG.batchDelay + 500
+          );
+        }
+      }
+
+      console.log("🎯 Filtering events for zip code 14075...");
+      const eventsWithTargetZip = cardBoxData
+        .filter((event) => event.eventDetails.hasZipCode14075 === true)
+        .map((event) => ({
+          eventName: event.eventDetails.eventName,
+          date: event.eventDetails.date,
+          location: event.eventDetails.location,
+          generalArea: event.eventDetails.generalArea,
+          detailedPageLink: event.eventDetails.detailedPageLink,
+          imageUrl: event.eventDetails.imageUrl,
+          zipCode: event.eventDetails.zipCode,
+        }));
 
       console.log(
-        `✅ Batch ${Math.floor(batchStart / batchSize) + 1} completed (${
-          batchResults.length
-        } events processed)`
+        `✅ Processing complete! Found ${eventsWithTargetZip.length} events with zip code 14075`
       );
 
-      // Small delay between batches to avoid overwhelming the API
-      if (batchEnd < cardBoxElements.length) {
-        await getRandomDelay(
-          RATE_LIMIT_CONFIG.batchDelay,
-          RATE_LIMIT_CONFIG.batchDelay + 500
-        );
-      }
+      return {
+        metadata: {
+          totalEventsScraped: cardBoxData.length,
+          eventsWithZip14075: eventsWithTargetZip.length,
+          scrapedAt: new Date().toISOString(),
+          sourceUrl: url,
+        },
+        events: eventsWithTargetZip,
+      };
+    } catch (error) {
+      console.error("❌ Error scraping elements:", error.message);
+      return null;
     }
-
-    console.log("🎯 Filtering events for zip code 14075...");
-    const eventsWithTargetZip = cardBoxData
-      .filter((event) => event.eventDetails.hasZipCode14075 === true)
-      .map((event) => ({
-        eventName: event.eventDetails.eventName,
-        date: event.eventDetails.date,
-        location: event.eventDetails.location,
-        generalArea: event.eventDetails.generalArea,
-        detailedPageLink: event.eventDetails.detailedPageLink,
-        imageUrl: event.eventDetails.imageUrl,
-        zipCode: event.eventDetails.zipCode,
-      }));
-
-    console.log(
-      `✅ Processing complete! Found ${eventsWithTargetZip.length} events with zip code 14075`
-    );
-
-    return {
-      metadata: {
-        totalEventsScraped: cardBoxData.length,
-        eventsWithZip14075: eventsWithTargetZip.length,
-        scrapedAt: new Date().toISOString(),
-        sourceUrl: url,
-      },
-      events: eventsWithTargetZip,
-    };
   } catch (error) {
     console.error("❌ Error scraping elements:", error.message);
     return null;
+  } finally {
+    await closeBrowser();
   }
 }
 
