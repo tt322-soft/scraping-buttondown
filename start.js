@@ -186,9 +186,9 @@ async function getEventData(url = null) {
         );
 
         const basicData = await page.evaluate(
-          (el, idx) => {
+          ({ element, index }) => {
             // Extract image URLs from img tags
-            const imgTags = Array.from(el.querySelectorAll("img")).map(
+            const imgTags = Array.from(element.querySelectorAll("img")).map(
               (img) => ({
                 type: "img",
                 src: img.src,
@@ -199,7 +199,7 @@ async function getEventData(url = null) {
 
             // Extract background images from style attributes
             const backgroundImages = [];
-            const elementsWithBg = Array.from(el.querySelectorAll("*")).filter(
+            const elementsWithBg = Array.from(element.querySelectorAll("*")).filter(
               (element) => {
                 const style = element.getAttribute("style");
                 return style && style.includes("background-image");
@@ -225,18 +225,17 @@ async function getEventData(url = null) {
             const allImages = [...imgTags, ...backgroundImages];
 
             return {
-              index: idx + 1,
-              innerHTML: el.innerHTML,
-              outerHTML: el.outerHTML,
-              textContent: el.textContent.trim(),
-              className: el.className,
-              id: el.id,
-              tagName: el.tagName,
+              index: index + 1,
+              innerHTML: element.innerHTML,
+              outerHTML: element.outerHTML,
+              textContent: element.textContent.trim(),
+              className: element.className,
+              id: element.id,
+              tagName: element.tagName,
               images: allImages,
             };
           },
-          element,
-          globalIndex
+          { element, index: globalIndex }
         );
 
         console.log(
