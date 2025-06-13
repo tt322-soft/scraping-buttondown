@@ -11,13 +11,14 @@
     "prestart": "npm run build"
   },
   "dependencies": {
+    "chrome-aws-lambda": "10.1.0",
     "dotenv": "^16.5.0",
+    "express": "^5.1.0",
     "node-fetch": "^3.3.2",
     "openai": "^4.0.0",
     "puppeteer": "19.11.1",
     "puppeteer-extra": "3.3.6",
-    "puppeteer-extra-plugin-stealth": "2.11.2",
-    "chrome-aws-lambda": "10.1.0"
+    "puppeteer-extra-plugin-stealth": "2.11.2"
   },
   "engines": {
     "node": ">=20.0.0"
