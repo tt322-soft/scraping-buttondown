@@ -33,22 +33,38 @@ let page = null;
 async function initializeBrowser(headless = false) {
   const randomUserAgent = getRandomUserAgent();
 
+  // Determine the Chrome executable path based on environment
+  const getChromePath = () => {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    
+    if (process.platform === 'win32') {
+      return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    }
+    
+    if (process.platform === 'darwin') {
+      return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    }
+    
+    return '/usr/bin/google-chrome';
+  };
+
   let launchOptions = {
     headless: "new",
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage'
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--single-process'
     ],
-    executablePath: process.platform === 'win32' 
-      ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
-      : process.platform === 'darwin'
-      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-      : '/usr/bin/google-chrome'
+    executablePath: getChromePath()
   };
 
   try {
-    console.log("🚀 Launching browser...");
+    console.log("🚀 Launching browser with executable path:", launchOptions.executablePath);
     browser = await puppeteer.launch(launchOptions);
     console.log("✅ Browser launched successfully");
     
