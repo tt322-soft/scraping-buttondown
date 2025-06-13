@@ -200,19 +200,28 @@ async function sendDraftEmail(emailId) {
  * @param {string} recipient - Email recipient
  * @returns {Promise<Object>} API response
  */
-export async function sendEmail(subject, htmlContent, recipient) {
-    const targetEmail = recipient || "webdev0505@gmail.com";
-    
-    // First create/update the subscriber
-    await createSubscriber(targetEmail);
-    
-    // Then create a draft
-    const draftResponse = await createDraftEmail(subject, htmlContent, targetEmail);
-    console.log("Draft created successfully:", draftResponse);
-    
-    // Finally send the draft
-    const sendResponse = await sendDraftEmail(draftResponse.id);
-    console.log("Email sent successfully:", sendResponse);
-    
-    return sendResponse;
+export async function sendEmail(subject, htmlContent, recipient = "webdev0505@gmail.com") {
+    if (!BUTTONDOWN_API_KEY) {
+        throw new Error("BUTTONDOWN_API_KEY environment variable is not set");
+    }
+
+    try {
+        // First create a draft email
+        console.log("Creating draft email...");
+        const draftResponse = await createDraftEmail(subject, htmlContent, recipient);
+        
+        if (!draftResponse || !draftResponse.id) {
+            throw new Error("Failed to create draft email: No ID returned");
+        }
+
+        // Then send the draft
+        console.log("Sending draft email...");
+        const sendResponse = await sendDraftEmail(draftResponse.id);
+        
+        console.log("Email sent successfully:", sendResponse);
+        return sendResponse;
+    } catch (error) {
+        console.error("Failed to send email:", error.message);
+        throw error;
+    }
 }
