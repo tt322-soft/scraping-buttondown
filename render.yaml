@@ -1,20 +1,19 @@
 services:
   - type: web
     name: stepout-buffalo-scraper
-    env: node
-    buildCommand: |
-      npm install
-      npm rebuild puppeteer
-      npm run postinstall
-    startCommand: node server.js
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: NODE_VERSION
         value: 20.0.0
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
       - key: PUPPETEER_EXECUTABLE_PATH
-        value: "/usr/bin/chromium-browser"
+        value: "/usr/bin/google-chrome"
+      - key: CHROME_BIN
+        value: "/usr/bin/google-chrome"
     buildFilter:
       paths:
         - package.json
-        - package-lock.json 
+        - package-lock.json
+        - Dockerfile 

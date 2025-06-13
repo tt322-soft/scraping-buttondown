@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Scraper for Step Out Buffalo events with email template generation",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "postinstall": "node node_modules/puppeteer/install.js",
@@ -13,10 +14,10 @@
     "dotenv": "^16.5.0",
     "node-fetch": "^3.3.2",
     "openai": "^4.0.0",
-    "puppeteer": "^21.0.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "chrome-aws-lambda": "^10.1.0"
+    "puppeteer": "19.11.1",
+    "puppeteer-extra": "3.3.6",
+    "puppeteer-extra-plugin-stealth": "2.11.2",
+    "chrome-aws-lambda": "10.1.0"
   },
   "engines": {
     "node": ">=20.0.0"

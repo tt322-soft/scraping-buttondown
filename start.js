@@ -34,19 +34,33 @@ let page = null;
 async function initializeBrowser(headless = false) {
   const randomUserAgent = getRandomUserAgent();
 
-  const executablePath = await chromium.executablePath || null;
-
   let launchOptions = {
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath: executablePath,
-    headless: chromium.headless,
-    ignoreHTTPSErrors: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--single-process',
+      '--disable-extensions',
+      '--disable-software-rasterizer',
+      '--disable-features=site-per-process',
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-site-isolation-trials'
+    ],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+    headless: "new",
+    ignoreHTTPSErrors: true
   };
 
   try {
+    console.log("🚀 Launching browser with options:", JSON.stringify(launchOptions, null, 2));
     browser = await puppeteer.launch(launchOptions);
+    console.log("✅ Browser launched successfully");
+    
     page = await browser.newPage();
+    console.log("✅ New page created");
 
     await page.setUserAgent(randomUserAgent);
     await page.setExtraHTTPHeaders({
@@ -54,7 +68,6 @@ async function initializeBrowser(headless = false) {
       "accept-encoding": "gzip, deflate, br",
     });
 
-    // Set viewport to ensure consistent dimensions
     await page.setViewport({
       width: 1366,
       height: 768,
@@ -64,9 +77,11 @@ async function initializeBrowser(headless = false) {
       isMobile: false,
     });
 
+    console.log("✅ Browser initialization completed successfully");
     return true;
   } catch (error) {
     console.error("❌ Browser initialization failed:", error.message);
+    console.error("Error details:", error);
     throw error;
   }
 }
