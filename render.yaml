@@ -1,20 +1,16 @@
 services:
   - type: web
-    name: stepout-buffalo-scraper
+    name: scraping-buttondown
     env: node
     buildCommand: |
-      apt-get update
-      apt-get install -y wget gnupg
-      wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-      sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
-      apt-get update
-      apt-get install -y google-chrome-stable
       npm install
+      npx playwright install chromium
+      npx playwright install-deps
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
-        value: 20.0.0
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "true"
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: "/usr/bin/google-chrome" 
+        value: 20.11.1
+      - key: BUTTONDOWN_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false 

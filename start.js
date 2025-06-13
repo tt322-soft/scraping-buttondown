@@ -32,6 +32,9 @@ async function initializeBrowser(headless = true) {
   const randomUserAgent = getRandomUserAgent();
 
   try {
+    // Check if we're in a deployment environment
+    const isDeployment = process.env.NODE_ENV === 'production' || process.env.RENDER;
+
     browser = await chromium.launch({
       headless: headless,
       args: [
@@ -39,7 +42,12 @@ async function initializeBrowser(headless = true) {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--disable-extensions",
+        "--single-process",
+        "--no-zygote",
       ],
+      executablePath: isDeployment ? process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH : undefined,
     });
 
     context = await browser.newContext({
