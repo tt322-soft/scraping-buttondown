@@ -9,8 +9,6 @@ async function setup() {
     console.log("📥 Installing Playwright browsers...");
     execSync("npx playwright install chromium", { stdio: "inherit" });
 
-    execSync("npx playwright install", { stdio: "inherit" });
-
     // Test browser launch
     console.log("🧪 Testing browser launch...");
     const browser = await chromium.launch({
