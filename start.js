@@ -20,12 +20,14 @@ const RATE_LIMIT_CONFIG = {
   retryDelay: 1000,
 };
 
+let browser = null;
+let context = null;
+let page = null;
+
 async function getEventData(url = null) {
   if (!url) {
     url = "https://stepoutbuffalo.com/all-events/";
   }
-
-  const { browser, context, page } = await initializeBrowser(true);
 
   try {
     console.log("🌐 Navigating to Step Out Buffalo events page...");
@@ -270,17 +272,18 @@ async function getEventData(url = null) {
       return null;
     }
   } catch (error) {
-    console.error("❌ Error scraping elements:", error.message);
+    console.error("❌ Error navigating to page:", error.message);
     return null;
-  } finally {
-    await closeBrowser();
   }
 }
 
 async function scrapeStepoutBuffaloProperties() {
   try {
     console.log("🚀 Initializing browser...");
-    await initializeBrowser(true);
+    const browserInstance = await initializeBrowser(true);
+    browser = browserInstance.browser;
+    context = browserInstance.context;
+    page = browserInstance.page;
 
     console.log("📊 Starting data extraction...");
     const data = await getEventData(null);
@@ -297,9 +300,10 @@ async function scrapeStepoutBuffaloProperties() {
     throw error;
   } finally {
     console.log("🧹 Closing browser...");
-    if (browser) {
-      await browser.close();
-    }
+    await closeBrowser();
+    browser = null;
+    context = null;
+    page = null;
   }
 }
 
@@ -414,34 +418,22 @@ async function main() {
 
     if (results) {
       console.log("\n📋 FINAL RESULTS:");
-      console.log(`🎯 Total events found: ${results.totalEventsScraped}`);
+      console.log(`🎯 Total events found: ${results.metadata.totalEventsScraped}`);
       console.log(
-        `🎯 Events with zip code 14075: ${results.eventsWithZip14075}`
+        `🎯 Events with zip code 14075: ${results.metadata.eventsWithZip14075}`
       );
 
       // Save the raw JSON data for reference
       const jsonFileName = "eventsZip14075.json";
       await fs.writeFile(
         jsonFileName,
-        JSON.stringify(
-          {
-            metadata: {
-              totalEventsScraped: results.totalEventsScraped,
-              eventsWithZip14075: results.eventsWithZip14075,
-              scrapedAt: new Date().toISOString(),
-              sourceUrl: results.sourceUrl,
-            },
-            events: results.eventsWithZip14075,
-          },
-          null,
-          2
-        ),
+        JSON.stringify(results, null, 2),
         "utf8"
       );
       console.log(`\n💾 Raw event data saved to: ${jsonFileName}`);
 
       // Take only the first 6 events for email
-      const limitedEvents = results.eventsWithZip14075.slice(0, 6);
+      const limitedEvents = results.events.slice(0, 6);
 
       // Prepare data for email template
       const emailData = {
@@ -553,16 +545,18 @@ async function main() {
       console.log("✅ Email sent successfully!", result);
 
       console.log("\n✅ Scraping and email sending completed successfully!");
+      return results;
     } else {
       console.log("❌ No results found");
+      return null;
     }
   } catch (error) {
     console.error("\n💥 Process failed:", error.message);
-    process.exit(1);
+    throw error;
   }
 }
 
-// Export the function
+// Export the functions
 export { scrapeStepoutBuffaloProperties, main };
 
 // Only run main() if this file is being run directly

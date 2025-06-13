@@ -13,21 +13,21 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/scrape", async (req, res) => {
-  // try {
-  console.log("🚀 Starting scrape process...");
-  const result = await main();
-  // if (!result) {
-  //   throw new Error("No data was scraped");
-  // }
-  // res.json(result);
-  // } catch (error) {
-  //   console.error("❌ Scrape error:", error.message);
-  //   res.status(500).json({
-  //     error: error.message,
-  //     details: error.stack,
-  //     timestamp: new Date().toISOString(),
-  //   });
-  // }
+  try {
+    console.log("🚀 Starting scrape process...");
+    const result = await main();
+    if (!result) {
+      throw new Error("No data was scraped");
+    }
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Scrape error:", error.message);
+    res.status(500).json({
+      error: error.message,
+      details: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 app.get("/", (req, res) => {
