@@ -282,22 +282,30 @@ async function getEventData(url = null) {
     }
 
     console.log("🎯 Filtering events for zip code 14075...");
-    const eventsWithTargetZip = cardBoxData.filter(
-      (event) => event.eventDetails.hasZipCode14075 === true
-    );
+    const eventsWithTargetZip = cardBoxData
+      .filter((event) => event.eventDetails.hasZipCode14075 === true)
+      .map((event) => ({
+        eventName: event.eventDetails.eventName,
+        date: event.eventDetails.date,
+        location: event.eventDetails.location,
+        generalArea: event.eventDetails.generalArea,
+        detailedPageLink: event.eventDetails.detailedPageLink,
+        imageUrl: event.eventDetails.imageUrl,
+        zipCode: event.eventDetails.zipCode,
+      }));
 
     console.log(
       `✅ Processing complete! Found ${eventsWithTargetZip.length} events with zip code 14075`
     );
 
     return {
-      mainElement: mainElementData,
-      cardBoxElements: cardBoxData,
-      eventsWithZip14075: eventsWithTargetZip,
-      totalEvents: cardBoxData.length,
-      eventsWithTargetZip: eventsWithTargetZip.length,
-      url: url,
-      scrapedAt: new Date().toISOString(),
+      metadata: {
+        totalEventsScraped: cardBoxData.length,
+        eventsWithZip14075: eventsWithTargetZip.length,
+        scrapedAt: new Date().toISOString(),
+        sourceUrl: url,
+      },
+      events: eventsWithTargetZip,
     };
   } catch (error) {
     console.error("❌ Error scraping elements:", error.message);
@@ -346,8 +354,8 @@ async function extractEventDataWithGPT(htmlContent, index) {
 Extract event information from this HTML content. Return a JSON object with the following structure:
 {
   "eventName": "string",
-  "date": "string", 
-  "location": "string",
+  "date": "string (format: 'Day, Month Date • Time' or 'Day, Month Date +more dates • Time - Time')", 
+  "location": "string (include full address if available)",
   "generalArea": "string",
   "detailedPageLink": "string (full URL if available)",
   "imageUrl": "string (primary event image URL if available)",
@@ -357,8 +365,8 @@ Extract event information from this HTML content. Return a JSON object with the 
 
 Look for:
 - Event name/title
-- Date and time information
-- Specific location/venue
+- Date and time information (preserve the exact format as shown on the website)
+- Specific location/venue (include full address if available)
 - General area/neighborhood
 - Any links to detailed event pages
 - Primary event image URL (look for both img src attributes AND CSS background-image properties in style attributes)
@@ -368,7 +376,7 @@ Look for:
 HTML Content:
 ${htmlContent}
 
-         Return only valid JSON, no additional text or markdown formatting.
+Return only valid JSON, no additional text or markdown formatting.
      `;
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -442,12 +450,33 @@ async function main() {
 
     if (results) {
       console.log("\n📋 FINAL RESULTS:");
-      console.log(`🎯 Total events found: ${results.totalEvents}`);
+      console.log(`🎯 Total events found: ${results.totalEventsScraped}`);
       console.log(
-        `🎯 Events with zip code 14075: ${results.eventsWithTargetZip}`
+        `🎯 Events with zip code 14075: ${results.eventsWithZip14075}`
       );
 
-      // Take only the first 6 events
+      // Save the raw JSON data for reference
+      const jsonFileName = "eventsZip14075.json";
+      await fs.writeFile(
+        jsonFileName,
+        JSON.stringify(
+          {
+            metadata: {
+              totalEventsScraped: results.totalEventsScraped,
+              eventsWithZip14075: results.eventsWithZip14075,
+              scrapedAt: new Date().toISOString(),
+              sourceUrl: results.sourceUrl,
+            },
+            events: results.eventsWithZip14075,
+          },
+          null,
+          2
+        ),
+        "utf8"
+      );
+      console.log(`\n💾 Raw event data saved to: ${jsonFileName}`);
+
+      // Take only the first 6 events for email
       const limitedEvents = results.eventsWithZip14075.slice(0, 6);
 
       // Prepare data for email template
@@ -457,15 +486,7 @@ async function main() {
           day: "numeric",
           year: "numeric",
         }),
-        events: limitedEvents.map((event) => ({
-          eventName: event.eventDetails.eventName,
-          date: event.eventDetails.date,
-          location: event.eventDetails.location,
-          generalArea: event.eventDetails.generalArea,
-          detailedPageLink: event.eventDetails.detailedPageLink,
-          imageUrl: event.eventDetails.imageUrl,
-          zipCode: event.eventDetails.zipCode,
-        })),
+        events: limitedEvents,
       };
 
       // Read the email template
@@ -566,35 +587,6 @@ async function main() {
       const emailSubject = `Step Out Buffalo Events - ${emailData.currentDateFormatted}`;
       const result = await sendEmail(emailSubject, populatedHtml);
       console.log("✅ Email sent successfully!", result);
-
-      // Also save the raw JSON data for reference
-      const jsonFileName = "eventsZip14075.json";
-      await fs.writeFile(
-        jsonFileName,
-        JSON.stringify(
-          {
-            metadata: {
-              totalEventsScraped: results.totalEvents,
-              eventsWithZip14075: results.eventsWithTargetZip,
-              scrapedAt: results.scrapedAt,
-              sourceUrl: results.url,
-            },
-            events: limitedEvents.map((event) => ({
-              eventName: event.eventDetails.eventName,
-              date: event.eventDetails.date,
-              location: event.eventDetails.location,
-              generalArea: event.eventDetails.generalArea,
-              detailedPageLink: event.eventDetails.detailedPageLink,
-              imageUrl: event.eventDetails.imageUrl,
-              zipCode: event.eventDetails.zipCode,
-            })),
-          },
-          null,
-          2
-        ),
-        "utf8"
-      );
-      console.log(`\n💾 Raw event data saved to: ${jsonFileName}`);
 
       console.log("\n✅ Scraping and email sending completed successfully!");
     } else {

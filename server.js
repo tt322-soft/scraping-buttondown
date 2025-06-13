@@ -19,7 +19,7 @@ app.get('/scrape', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.send('✅ Scraper is running. Use /scrape to trigger.');
-});
+});      
 
 app.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
