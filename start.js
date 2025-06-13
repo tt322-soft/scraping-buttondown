@@ -34,12 +34,12 @@ async function getEventData(url = null) {
       timeout: 60000,
     });
 
-    await getRandomDelay(2000, 3000);
+    await getRandomDelay(6000, 8000);
 
     try {
-      console.log("📜 Starting page scroll to load initial content...");
-      const scrollDuration = 2000;
-      const scrollStep = 300;
+      console.log("📜 Starting page scroll to load all content...");
+      const scrollDuration = 4000;
+      const scrollStep = 200;
       const scrollInterval = 100;
 
       const startTime = Date.now();
@@ -50,7 +50,12 @@ async function getEventData(url = null) {
         await new Promise((resolve) => setTimeout(resolve, scrollInterval));
       }
 
-      await getRandomDelay(2000, 3000);
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+
+      console.log("⏳ Waiting for content to settle...");
+      await getRandomDelay(4000, 5000);
 
       console.log("🔍 Looking for event elements...");
 
@@ -81,27 +86,37 @@ async function getEventData(url = null) {
         return null;
       }
 
-      const maxEventsToProcess = 50;
-      cardBoxElements = cardBoxElements.slice(0, maxEventsToProcess);
-      console.log(`📦 Processing first ${cardBoxElements.length} events`);
+      console.log(`📦 Found ${cardBoxElements.length} event elements`);
 
       const mainElement = await page.$(selectors[0]);
+
       if (!mainElement) {
         console.log("❌ Main element not found");
         return null;
       }
 
-      console.log("✅ Main element found, processing events...");
+      console.log("✅ Main element found, searching for cardBox elements...");
 
-      const batchSize = 10;
+      const mainElementData = await page.evaluate((element) => {
+        return {
+          innerHTML: element.innerHTML,
+          outerHTML: element.outerHTML,
+          textContent: element.textContent.trim(),
+          className: element.className,
+          id: element.id,
+          tagName: element.tagName,
+        };
+      }, mainElement);
+
+      console.log("🤖 Starting GPT-4o processing for each event...");
+
+      // Process events in parallel batches to maximize throughput
+      const batchSize = RATE_LIMIT_CONFIG.batchSize; // Adjust based on your rate limits
       const cardBoxData = [];
-      let foundEventsWithZip = 0;
-      const targetEvents = 6;
 
       for (
         let batchStart = 0;
-        batchStart < cardBoxElements.length &&
-        foundEventsWithZip < targetEvents;
+        batchStart < cardBoxElements.length;
         batchStart += batchSize
       ) {
         const batchEnd = Math.min(
@@ -118,8 +133,14 @@ async function getEventData(url = null) {
           }-${batchEnd})`
         );
 
+        // Process batch in parallel
         const batchPromises = batch.map(async (element, batchIndex) => {
           const globalIndex = batchStart + batchIndex;
+          console.log(
+            `🔄 Processing event ${globalIndex + 1}/${
+              cardBoxElements.length
+            }...`
+          );
 
           const basicData = await page.evaluate(
             ({ element, index }) => {
@@ -160,9 +181,6 @@ async function getEventData(url = null) {
               // Combine all images
               const allImages = [...imgTags, ...backgroundImages];
 
-              // Quick check for zip code 14075 in the HTML content
-              const hasZip14075 = element.textContent.includes("14075");
-
               return {
                 index: index + 1,
                 innerHTML: element.innerHTML,
@@ -172,46 +190,51 @@ async function getEventData(url = null) {
                 id: element.id,
                 tagName: element.tagName,
                 images: allImages,
-                hasZip14075: hasZip14075,
               };
             },
             { element, index: globalIndex }
           );
 
-          if (basicData.hasZip14075) {
-            console.log(
-              `  🎯 Found potential event with zip 14075 (${globalIndex + 1})`
-            );
-            const eventData = await extractEventDataWithGPT(
-              basicData.outerHTML,
+          console.log(
+            `  📸 Found ${basicData.images.length} image(s) in event ${
               globalIndex + 1
-            );
-            return {
-              ...basicData,
-              eventDetails: eventData,
-            };
-          }
-          return null;
+            }:`
+          );
+          basicData.images.forEach((img, imgIndex) => {
+            if (img.type === "background") {
+              console.log(`    🎨 Background image: ${img.src}`);
+            } else {
+              console.log(`    🖼️ IMG tag: ${img.src}`);
+            }
+          });
+
+          const eventData = await extractEventDataWithGPT(
+            basicData.outerHTML,
+            globalIndex + 1
+          );
+
+          return {
+            ...basicData,
+            eventDetails: eventData,
+          };
         });
 
+        // Wait for all batch requests to complete
         const batchResults = await Promise.all(batchPromises);
-        const validResults = batchResults.filter((result) => result !== null);
-        cardBoxData.push(...validResults);
-        foundEventsWithZip = cardBoxData.length;
+        cardBoxData.push(...batchResults);
 
         console.log(
-          `✅ Batch ${
-            Math.floor(batchStart / batchSize) + 1
-          } completed (found ${validResults.length} events with zip 14075)`
+          `✅ Batch ${Math.floor(batchStart / batchSize) + 1} completed (${
+            batchResults.length
+          } events processed)`
         );
 
-        if (foundEventsWithZip >= targetEvents) {
-          console.log("🎯 Found enough events with zip 14075, stopping...");
-          break;
-        }
-
+        // Small delay between batches to avoid overwhelming the API
         if (batchEnd < cardBoxElements.length) {
-          await getRandomDelay(200, 300);
+          await getRandomDelay(
+            RATE_LIMIT_CONFIG.batchDelay,
+            RATE_LIMIT_CONFIG.batchDelay + 500
+          );
         }
       }
 
@@ -227,7 +250,7 @@ async function getEventData(url = null) {
           imageUrl: event.eventDetails.imageUrl,
           zipCode: event.eventDetails.zipCode,
         }))
-        .slice(0, 6);
+        .slice(0, 6); // Take only first 6 events
 
       console.log(
         `✅ Processing complete! Found ${eventsWithTargetZip.length} events with zip code 14075`
@@ -235,7 +258,7 @@ async function getEventData(url = null) {
 
       return {
         metadata: {
-          totalEventsScraped: cardBoxElements.length,
+          totalEventsScraped: cardBoxData.length,
           eventsWithZip14075: eventsWithTargetZip.length,
           scrapedAt: new Date().toISOString(),
           sourceUrl: url,
