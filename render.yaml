@@ -1,12 +1,7 @@
 services:
   - type: web
     name: stepout-buffalo-scraper
-    env: node
-    nodeVersion: 18
-    buildCommand: npm install
-    startCommand: |
-      npx playwright install chromium --with-deps
-      node server.js
+    env: docker
     envVars:
       - key: NODE_ENV
         value: production
