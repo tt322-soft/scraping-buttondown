@@ -9,14 +9,19 @@ async function setup() {
     console.log('📥 Installing Playwright browsers...');
     execSync('npx playwright install chromium', { stdio: 'inherit' });
     
-    // Install system dependencies
-    console.log('📥 Installing system dependencies...');
-    execSync('npx playwright install-deps', { stdio: 'inherit' });
-    
     // Test browser launch
     console.log('🧪 Testing browser launch...');
     const browser = await chromium.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--single-process',
+        '--no-zygote'
+      ]
     });
     await browser.close();
     
