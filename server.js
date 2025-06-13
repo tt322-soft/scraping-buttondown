@@ -1,7 +1,8 @@
 // server.js
 import express from 'express';
-import { scrapeStepoutBuffaloProperties } from './start.js'; // You already have this
+import { scrapeStepoutBuffaloProperties } from './start.js';
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 const app = express();
