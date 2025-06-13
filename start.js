@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import chromium from 'chrome-aws-lambda';
 import {
   getRandomUserAgent,
   getRandomDelay,
@@ -14,15 +15,15 @@ console.log("🚀 Script starting...");
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // Make sure to set this environment variable
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
-  batchSize: 30, // Requests per batch (adjust based on your tier)
-  batchDelay: 500, // Delay between batches in ms
-  maxRetries: 3, // Max retries for rate limit errors
-  retryDelay: 1000, // Initial retry delay in ms
+  batchSize: 30,
+  batchDelay: 500,
+  maxRetries: 3,
+  retryDelay: 1000,
 };
 
 puppeteer.use(StealthPlugin());
@@ -33,15 +34,14 @@ let page = null;
 async function initializeBrowser(headless = false) {
   const randomUserAgent = getRandomUserAgent();
 
+  const executablePath = await chromium.executablePath || null;
+
   let launchOptions = {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--no-zygote'
-    ]
+    args: chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: executablePath,
+    headless: chromium.headless,
+    ignoreHTTPSErrors: true,
   };
 
   try {
@@ -436,181 +436,3 @@ ${htmlContent}
     }
   }
 }
-
-async function main() {
-  try {
-    console.log("🔍 Starting Step Out Buffalo event scraper...");
-    const results = await scrapeStepoutBuffaloProperties();
-
-    if (results) {
-      console.log("\n📋 FINAL RESULTS:");
-      console.log(`🎯 Total events found: ${results.totalEvents}`);
-      console.log(
-        `🎯 Events with zip code 14075: ${results.eventsWithTargetZip}`
-      );
-
-      // Take only the first 6 events
-      const limitedEvents = results.eventsWithZip14075.slice(0, 6);
-
-      // Prepare data for email template
-      const emailData = {
-        currentDateFormatted: new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        }),
-        events: limitedEvents.map((event) => ({
-          eventName: event.eventDetails.eventName,
-          date: event.eventDetails.date,
-          location: event.eventDetails.location,
-          generalArea: event.eventDetails.generalArea,
-          detailedPageLink: event.eventDetails.detailedPageLink,
-          imageUrl: event.eventDetails.imageUrl,
-          zipCode: event.eventDetails.zipCode,
-        })),
-      };
-
-      // Read the email template
-      const templateHtml = await fs.readFile("email-template.html", "utf-8");
-
-      // Populate the template with event data
-      let populatedHtml = templateHtml;
-
-      // Replace current date
-      populatedHtml = populatedHtml.replace(
-        "{{current_date_formatted}}",
-        emailData.currentDateFormatted
-      );
-
-      // Generate event items HTML
-      let eventItemsRow1 = "";
-      let eventItemsRow2 = "";
-      
-      // Split events into two rows
-      const firstRowEvents = emailData.events.slice(0, 3);
-      const secondRowEvents = emailData.events.slice(3, 6);
-
-      // Generate HTML for first row
-      for (const event of firstRowEvents) {
-        eventItemsRow1 += `
-          <td align="center" valign="top" style="padding: 0 5px 20px 5px;" class="event-column">
-              <table border="0" cellpadding="0" cellspacing="0" width="180" class="event-card">
-                  <tr>
-                      <td align="center" style="padding-bottom: 10px;">
-                          <a href="${event.detailedPageLink}" target="_blank">
-                              <img src="${event.imageUrl}" alt="${event.eventName}" width="180" height="223" style="display: block; border: 0; width:180px; height:223px;" class="responsive-image">
-                          </a>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td align="center" style="font-size: 16px; font-weight: bold; padding-bottom: 5px;">
-                          <a href="${event.detailedPageLink}" target="_blank" style="color: #0066cc;">
-                              ${event.eventName}
-                          </a>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td align="center" style="font-size: 14px; padding-bottom: 10px;" class="event-date-color">
-                          ${event.date}
-                      </td>
-                  </tr>
-              </table>
-          </td>`;
-      }
-
-      // Generate HTML for second row
-      for (const event of secondRowEvents) {
-        eventItemsRow2 += `
-          <td align="center" valign="top" style="padding: 0 5px 20px 5px;" class="event-column">
-              <table border="0" cellpadding="0" cellspacing="0" width="180" class="event-card">
-                  <tr>
-                      <td align="center" style="padding-bottom: 10px;">
-                          <a href="${event.detailedPageLink}" target="_blank">
-                              <img src="${event.imageUrl}" alt="${event.eventName}" width="180" height="223" style="display: block; border: 0; width:180px; height:223px;" class="responsive-image">
-                          </a>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td align="center" style="font-size: 16px; font-weight: bold; padding-bottom: 5px;">
-                          <a href="${event.detailedPageLink}" target="_blank" style="color: #0066cc;">
-                              ${event.eventName}
-                          </a>
-                      </td>
-                  </tr>
-                  <tr>
-                      <td align="center" style="font-size: 14px; padding-bottom: 10px;" class="event-date-color">
-                          ${event.date}
-                      </td>
-                  </tr>
-              </table>
-          </td>`;
-      }
-
-      // Replace event items placeholders
-      populatedHtml = populatedHtml.replace(
-        "<!-- {{EVENT_ITEMS_ROW_1}} -->",
-        eventItemsRow1
-      );
-      populatedHtml = populatedHtml.replace(
-        "<!-- {{EVENT_ITEMS_ROW_2}} -->",
-        eventItemsRow2
-      );
-
-      // Format and sanitize the HTML content
-      populatedHtml = populatedHtml
-        .replace(/\r\n/g, '\n') // Normalize line endings
-        .replace(/\n\s*\n/g, '\n') // Remove multiple empty lines
-        .replace(/>\s+</g, '><') // Remove whitespace between tags
-        .trim(); // Remove leading/trailing whitespace
-
-      // Send email via Buttondown
-      console.log("\n📧 Sending email via Buttondown...");
-      const emailSubject = `Step Out Buffalo Events - ${emailData.currentDateFormatted}`;
-      const result = await sendEmail(emailSubject, populatedHtml);
-      console.log("✅ Email sent successfully!", result);
-
-      // Also save the raw JSON data for reference
-      const jsonFileName = "eventsZip14075.json";
-      await fs.writeFile(
-        jsonFileName,
-        JSON.stringify(
-          {
-            metadata: {
-              totalEventsScraped: results.totalEvents,
-              eventsWithZip14075: results.eventsWithTargetZip,
-              scrapedAt: results.scrapedAt,
-              sourceUrl: results.url,
-            },
-            events: limitedEvents.map((event) => ({
-              eventName: event.eventDetails.eventName,
-              date: event.eventDetails.date,
-              location: event.eventDetails.location,
-              generalArea: event.eventDetails.generalArea,
-              detailedPageLink: event.eventDetails.detailedPageLink,
-              imageUrl: event.eventDetails.imageUrl,
-              zipCode: event.eventDetails.zipCode,
-            })),
-          },
-          null,
-          2
-        ),
-        "utf8"
-      );
-      console.log(`\n💾 Raw event data saved to: ${jsonFileName}`);
-
-      console.log("\n✅ Scraping and email sending completed successfully!");
-    } else {
-      console.log("❌ No results found");
-    }
-  } catch (error) {
-    console.error("\n💥 Process failed:", error.message);
-    process.exit(1);
-  }
-}
-
-console.log("📝 Checking if script is being run directly...");
-console.log("✅ Starting main function...");
-main().catch((error) => {
-  console.error("❌ Error in main function:", error);
-  process.exit(1);
-});
