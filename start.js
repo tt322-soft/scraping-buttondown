@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { promises as fs } from "fs";
 import OpenAI from "openai";
+import { closeBrowser, initializeBrowser } from "./browser.js";
 import { sendEmail } from "./utils/buttondown.js";
-import { getRandomUserAgent, getRandomDelay } from "./utils/utils.js";
-import { initializeBrowser, closeBrowser } from "./browser.js";
+import { getRandomDelay } from "./utils/utils.js";
 
 console.log("🚀 Script starting...");
 
@@ -251,8 +251,8 @@ async function getEventData(url = null) {
           detailedPageLink: event.eventDetails.detailedPageLink,
           imageUrl: event.eventDetails.imageUrl,
           zipCode: event.eventDetails.zipCode,
-        }))
-        .slice(0, 6); // Take only first 6 events
+        }));
+      // .slice(0, 6); // Take only first 6 events
 
       console.log(
         `✅ Processing complete! Found ${eventsWithTargetZip.length} events with zip code 14075`
@@ -418,7 +418,9 @@ async function main() {
 
     if (results) {
       console.log("\n📋 FINAL RESULTS:");
-      console.log(`🎯 Total events found: ${results.metadata.totalEventsScraped}`);
+      console.log(
+        `🎯 Total events found: ${results.metadata.totalEventsScraped}`
+      );
       console.log(
         `🎯 Events with zip code 14075: ${results.metadata.eventsWithZip14075}`
       );
@@ -557,7 +559,7 @@ async function main() {
 }
 
 // Export the functions
-export { scrapeStepoutBuffaloProperties, main };
+export { main, scrapeStepoutBuffaloProperties };
 
 // Only run main() if this file is being run directly
 if (import.meta.url === `file://${process.argv[1]}`) {

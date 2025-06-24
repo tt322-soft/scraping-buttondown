@@ -1,6 +1,6 @@
-import express from "express";
-import { main } from "./start.js";
 import dotenv from "dotenv";
+import express from "express";
+import { scrapeStepoutBuffaloProperties } from "./start.js";
 
 dotenv.config();
 
@@ -15,7 +15,7 @@ app.get("/health", (req, res) => {
 app.get("/scrape", async (req, res) => {
   try {
     console.log("🚀 Starting scrape process...");
-    const result = await main();
+    const result = await scrapeStepoutBuffaloProperties();
     if (!result) {
       throw new Error("No data was scraped");
     }
