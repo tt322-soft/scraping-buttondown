@@ -240,9 +240,15 @@ async function getEventData(url = null) {
         }
       }
 
-      console.log("🎯 Filtering events for zip code 14075...");
-      const eventsWithTargetZip = cardBoxData
-        .filter((event) => event.eventDetails.hasZipCode14075 === true)
+      console.log(
+        "🎯 Filtering events for zip code 14075 and Hamburg location..."
+      );
+      const eventsWithTargetZipAndHamburg = cardBoxData
+        .filter(
+          (event) =>
+            event.eventDetails.hasZipCode14075 === true &&
+            event.eventDetails.hasHamburgLocation === true
+        )
         .map((event) => ({
           eventName: event.eventDetails.eventName,
           date: event.eventDetails.date,
@@ -255,17 +261,17 @@ async function getEventData(url = null) {
       // .slice(0, 6); // Take only first 6 events
 
       console.log(
-        `✅ Processing complete! Found ${eventsWithTargetZip.length} events with zip code 14075`
+        `✅ Processing complete! Found ${eventsWithTargetZipAndHamburg.length} events with zip code 14075 and Hamburg location`
       );
 
       return {
         metadata: {
           totalEventsScraped: cardBoxData.length,
-          eventsWithZip14075: eventsWithTargetZip.length,
+          eventsWithZip14075AndHamburg: eventsWithTargetZipAndHamburg.length,
           scrapedAt: new Date().toISOString(),
           sourceUrl: url,
         },
-        events: eventsWithTargetZip,
+        events: eventsWithTargetZipAndHamburg,
       };
     } catch (error) {
       console.error("❌ Error scraping elements:", error.message);
@@ -328,7 +334,8 @@ Extract event information from this HTML content. Return a JSON object with the 
   "detailedPageLink": "string (full URL if available)",
   "imageUrl": "string (primary event image URL if available)",
   "zipCode": "string (if mentioned)",
-  "hasZipCode14075": boolean
+  "hasZipCode14075": boolean,
+  "hasHamburgLocation": boolean
 }
 
 Look for:
@@ -340,6 +347,7 @@ Look for:
 - Primary event image URL (look for both img src attributes AND CSS background-image properties in style attributes)
 - Zip code 14075 specifically or any zip codes
 - Set hasZipCode14075 to true if zip code 14075 is found anywhere in the content
+- Set hasHamburgLocation to true if the word 'Hamburg' (case-insensitive) is found in the location, address, or venue fields
 
 HTML Content:
 ${htmlContent}
@@ -373,6 +381,11 @@ Return only valid JSON, no additional text or markdown formatting.
       }
 
       const result = JSON.parse(responseText);
+      // Add fallback for hasHamburgLocation if not present in result
+      if (typeof result.hasHamburgLocation === "undefined") {
+        const loc = (result.location || "").toLowerCase();
+        result.hasHamburgLocation = loc.includes("hamburg");
+      }
       console.log(
         `  ✅ Event ${index} processed: "${result.eventName}" ${
           result.hasZipCode14075 ? "🎯" : ""
@@ -422,7 +435,7 @@ async function main() {
         `🎯 Total events found: ${results.metadata.totalEventsScraped}`
       );
       console.log(
-        `🎯 Events with zip code 14075: ${results.metadata.eventsWithZip14075}`
+        `🎯 Events with zip code 14075 and Hamburg location: ${results.metadata.eventsWithZip14075AndHamburg}`
       );
 
       // Save the raw JSON data for reference
